@@ -1,12 +1,21 @@
-OS_RELEASE_FILE := /etc/os-release
-OS_RELEASE_FILE_EXISTS := $(shell test -f $(OS_RELEASE_FILE) && echo yes || echo no)
-UNAME := $(shell uname | tr A-Z a-z)
+IS_WINDOWS := $(if $(filter Windows_NT,$(OS)),yes,$(if $(or $(ComSpec),$(COMSPEC),$(WINDIR),$(windir)),yes,no))
 
-# Detect OS and related information
+ifeq ($(IS_WINDOWS),yes)
+	CURRENT_ARCH := amd64
+	ifneq (,$(findstring ARM64,$(PROCESSOR_ARCHITECTURE) $(PROCESSOR_ARCHITEW6432)))
+		CURRENT_ARCH := arm64
+	endif
+	UNAME := windows
+	OS := Windows
+	OS_ID := windows
+	OS_ID_LIKE := windows
+	OS_VERSION := $(shell ver)
+else
+	OS_RELEASE_FILE := /etc/os-release
+	OS_RELEASE_FILE_EXISTS := $(if $(wildcard $(OS_RELEASE_FILE)),yes,no)
+	UNAME := $(shell uname | tr A-Z a-z 2>/dev/null)
 
-#
-# macOS
-#
+	# Detect OS and related information
 ifeq ($(UNAME),darwin)
 	OS_ID := macos
 	OS_VERSION_MAJOR := $(shell sw_vers -productVersion | cut -c1-2)
@@ -26,9 +35,6 @@ else
 	OS_ID := UNKNOWN
 endif
 	OS_ID_LIKE := $(UNAME)
-#
-# Linux distros with /etc/os-release file
-#
 else ifeq ($(OS_RELEASE_FILE_EXISTS),yes)
 	# Ubuntu 18.04.3 LTS (Bionic Beaver) / Manjaro Linux / Arch Linux
 	OS := $(shell . $(OS_RELEASE_FILE) && echo "$${PRETTY_NAME}")
@@ -41,28 +47,20 @@ ifeq ($(OS_ID),arch)
 endif
 	# e.g. Ubuntu can give: 18.04
 	OS_VERSION := $(shell . $(OS_RELEASE_FILE) && echo "$${VERSION_ID}")
-#
-# Others
-#
 else
 	OS := $(shell uname -s)
 	OS_ID := UNKNOWN
 	OS_ID_LIKE := UNKNOWN
 	OS_VERSION := UNKNOWN
 endif
+endif
 
-#
-# WSL
-#
 ifneq ($(WSL_INTEROP),)
 	WSL := yes
 else
 	WSL := no
 endif
 
-#
-# Not supported!
-#
 ifeq ($(OS_ID),UNKNOWN)
 ifeq ($(WSL),yes)
 $(error OS $(OS) not supported. WSL_INTEROP is $(WSL_INTEROP))
@@ -71,9 +69,6 @@ $(error OS $(OS) not supported)
 endif
 endif
 
-#
-# macOS additions
-#
 ifeq ($(OS_ID_LIKE),darwin)
 	BREW_BIN := $(shell command -v brew || echo no)
 endif
